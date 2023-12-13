@@ -4,6 +4,7 @@ namespace App;
 
 use Carbon\Carbon;
 
+use function dirname;
 use function imagecolorallocate;
 use function imagecreatetruecolor;
 use function imagedestroy;
@@ -29,7 +30,7 @@ class ImageCreator
         string $text2 = "Une superbe image"
     ) {
         // Création d'une image de 400x200 pixels
-        $this->im = imagecreatetruecolor(400, 200);
+        $this->im = imagecreatetruecolor(600, 200);
         $this->white = $this->allocateColor([255, 255, 255]);
         $this->yourColor = $this->allocateColor($yourColor);
         $this->yourColor2 = $this->allocateColor($yourColor2);
@@ -43,7 +44,7 @@ class ImageCreator
         }
 
         // La police
-        $this->font = 'consolas.ttf';
+        $this->font = dirname(__DIR__) . '/public/font/consolas.ttf';
     }
 
 
@@ -56,8 +57,8 @@ class ImageCreator
     public function createImage(): void
     {
         // Dessine un double rectangle
-        imagefilledrectangle($this->im, 0, 0, 400, 200, $this->yourColor);
-        imagefilledrectangle($this->im, 10, 10, 390, 190, $this->yourColor2);
+        imagefilledrectangle($this->im, 0, 0, 600, 200, $this->yourColor);
+        imagefilledrectangle($this->im, 10, 10, 590, 190, $this->yourColor2);
 
         // Ajout du texte
         imagettftext($this->im, 20, 0, 50, 50, $this->white, $this->font, $this->text);
