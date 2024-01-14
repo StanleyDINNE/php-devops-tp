@@ -71,7 +71,7 @@
 ) = {
 	let code_snippet = par(justify: false)[#text(size: 8pt)[#code]]
 	figure(
-		kind: "Code snippet", supplement: "Code snippet",
+		kind: "Code snippet", supplement: "Code",
 		caption: [#title],
 		if border { rect[#code_snippet] }
 		else { code_snippet },
@@ -80,7 +80,7 @@
 
 #let insert_figure(
 	title,
-	folder: __constants_toml.figures_folder,
+	folder: "../" + __constants_toml.figures_folder,
 	width: 100%,
 	border: true,
 ) = {
