@@ -1,0 +1,20 @@
+figures_folder = "Embedded_files"
+
+[author]
+reb = "Rebecca ABLI"
+stan = "Stanley DINNE"
+raf = "Achraf EL BACH"
+
+
+[color]
+header_footer_grey = "888888"
+file_folder = "355ba4"
+#code_line_color = "8f753d"
+
+[size]
+foot_head = 8 # in pt
+
+
+[char] # hexa
+em-dash = 0x2014
+tab = 0x9
