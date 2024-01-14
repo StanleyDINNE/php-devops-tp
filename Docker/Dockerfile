@@ -78,12 +78,14 @@ RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local
 # Enable the apache's mod_rewrite
 RUN a2enmod rewrite
 
-RUN sed -i 's!/var/www/html!/var/www/html/public!g' /etc/apache2/sites-available/000-default.conf
+RUN mkdir -p /var/www/html/public \
+	&& sed -i 's!/var/www/html!/var/www/html/public!g' /etc/apache2/sites-available/000-default.conf
 
 # Copy existing application directory contents
 COPY . /var/www/html
 
-RUN rm -Rf /var/www/html/docker
+RUN rm -rf /var/www/html/Docker \
+	&& rm -rf /var/www/html/documents
 
 # Ensure the volumes directories exist
 RUN mkdir -p /var/www/html/vendor \
@@ -94,6 +96,9 @@ RUN chown -R www-data:www-data /var/www/html
 
 # Define the working directory
 WORKDIR /var/www/html
+
+# Install project dependencies
+RUN composer update
 
 # Exposez le port 80
 EXPOSE 80
