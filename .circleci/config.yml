@@ -173,7 +173,7 @@ jobs:
     steps:
       - checkout
       - setup_remote_docker:
-          version: 20.10.23
+          version: default
           docker_layer_caching: true
       - run:
           name: Build and Push Docker Image to GHCR (GitHub Container Registry)
@@ -190,6 +190,9 @@ jobs:
 
             # Login to GHCR
             echo "$GHCR_PAT" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
+            echo "Displaying $HOME/.docker/config.json"
+            cat $HOME/.docker/config.json
+            echo "End of display"
 
             # Build the Docker image
             docker build \
