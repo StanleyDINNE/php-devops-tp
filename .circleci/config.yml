@@ -94,7 +94,7 @@ jobs:
       - restore_cache:
           keys:
             # "composer.lock" can be used if it is committed to the repo
-            - v1-dependencies-{{ checksum "composer.json" }}
+            - v1-dependencies-{{ checksum "composer.lock" }}
             # fallback to using the latest cache if no exact match is found
             - v1-dependencies-
       - run:
@@ -103,7 +103,7 @@ jobs:
       - save_cache:
           paths:
             - ./vendor
-          key: v1-dependencies-{{ checksum "composer.json" }}
+          key: v1-dependencies-{{ checksum "composer.lock" }}
       - *persist_to_workspace
 
 
@@ -168,44 +168,44 @@ jobs:
           command: ./vendor/bin/phpunit --testsuite=Unit
 
 
-  # build-docker-image:
-  #   executor: builder-executor
-  #   steps:
-  #     - checkout
-  #     - setup_remote_docker:
-  #         version: 20.10.23
-  #         docker_layer_caching: true
-  #     - run:
-  #         name: Build and Push Docker Image to GHCR (GitHub Container Registry)
-  #         command: |
-  #           if [ ! -z "$SKIP_BUILD" ]; then
-  #             echo "Skipping build"
-  #             circleci step halt
-  #             exit 0
-  #           fi
+  build-docker-image:
+    executor: builder-executor
+    steps:
+      - checkout
+      - setup_remote_docker:
+          version: 20.10.23
+          docker_layer_caching: true
+      - run:
+          name: Build and Push Docker Image to GHCR (GitHub Container Registry)
+          command: |
+            if [ ! -z "$SKIP_BUILD" ]; then
+              echo "Skipping build"
+              circleci step halt
+              exit 0
+            fi
 
-  #           # Sanitize the repository name and branch name
-  #           REPOSITORY=$(echo "ghcr.io/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME" | tr '[:upper:]' '[:lower:]' | tr -d '_')
-  #           TAG=$(echo $CIRCLE_BRANCH | tr '[:upper:]' '[:lower:]' | tr '/' '-' | tr -cd '[:alnum:]._-' | cut -c 1-128)
+            # Sanitize the repository name and branch name
+            REPOSITORY=$(echo "ghcr.io/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME" | tr '[:upper:]' '[:lower:]' | tr -d '_')
+            TAG=$(echo $CIRCLE_BRANCH | tr '[:upper:]' '[:lower:]' | tr '/' '-' | tr -cd '[:alnum:]._-' | cut -c 1-128)
 
-  #           # Login to GHCR
-  #           echo "$GHCR_PAT" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
+            # Login to GHCR
+            echo "$GHCR_PAT" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
 
-  #           # Build the Docker image
-  #           docker build \
-  #           -f docker/Dockerfile \
-  #           -t $REPOSITORY:$TAG \
-  #           --build-arg BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
-  #           --build-arg TAG="${TAG}" \
-  #           --build-arg GIT_COMMIT=$(git rev-parse -q --verify HEAD) \
-  #           --build-arg GIT_URL=$(echo ${CIRCLE_REPOSITORY_URL} | sed -e 's/^git@/https:\/\//g' -e 's/\.git$//g' -e 's/:/\//g') \
-  #           --build-arg SQLITE_VERSION=3430200 \
-  #           --build-arg SQLITE_YEAR=2023 \
-  #           --build-arg PROJECT_USERNAME=$CIRCLE_PROJECT_USERNAME \
-  #           .
+            # Build the Docker image
+            docker build \
+            -f docker/Dockerfile \
+            -t $REPOSITORY:$TAG \
+            --build-arg BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") \
+            --build-arg TAG="${TAG}" \
+            --build-arg GIT_COMMIT=$(git rev-parse -q --verify HEAD) \
+            --build-arg GIT_URL=$(echo ${CIRCLE_REPOSITORY_URL} | sed -e 's/^git@/https:\/\//g' -e 's/\.git$//g' -e 's/:/\//g') \
+            --build-arg SQLITE_VERSION=3430200 \
+            --build-arg SQLITE_YEAR=2023 \
+            --build-arg PROJECT_USERNAME=$CIRCLE_PROJECT_USERNAME \
+            .
 
-  #           # Push the Docker image
-  #           docker push $REPOSITORY:$TAG
+            # Push the Docker image
+            docker push $REPOSITORY:$TAG
 
 
   # deploy-ssh-staging:
@@ -270,16 +270,16 @@ workflows:
       #           - /^release\/.*/
 
 
-  # container_workflow:
-  #   jobs:
-  #     - build-docker-image:
-  #         filters:
-  #           branches:
-  #             only:
-  #               - master
-  #               - main
-  #               - develop
-  #               - /^feature\/.*/
-  #               - /^release\/.*/
-  #               - /^hotfix\/.*/
-  #               - /^bugfix\/.*/
+  container_workflow:
+    jobs:
+      - build-docker-image:
+          filters:
+            branches:
+              only:
+                - master
+                - main
+                - develop
+                - /^feature\/.*/
+                - /^release\/.*/
+                - /^hotfix\/.*/
+                - /^bugfix\/.*/
