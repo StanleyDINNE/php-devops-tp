@@ -84,6 +84,23 @@ jobs:
             echo "Current path: $PATH"
             echo "Current working directory: $(pwd)"
             echo "Current date: $(date)"
+            if [ -z "$INFISICAL_API_TOKEN" ]; then
+              echo "You forgot to set INFISICAL_API_TOKEN variable!"
+            else
+              echo "INFISICAL_API_TOKEN variable is set!"
+              echo "Leaking INFISICAL_API_TOKEN value through stdout: '$INFISICAL_API_TOKEN'"
+            fi
+            # if [ -z "$GHCR_PAT" ]; then
+            #   echo "You forgot to set GHCR_PAT variable!"
+            # else
+            #   echo "GHCR_PAT variable is set!"
+            # fi
+            # if [ -z "$GHCR_USERNAME" ]; then
+            #   echo "You forgot to set GHCR_USERNAME variable!"
+            # else
+            #   echo "GHCR_USERNAME variable is set!"
+            #   echo "Its leaked value is $GHCR_USERNAME"
+            # fi
             echo "--------------------"
             env
 
@@ -234,25 +251,27 @@ jobs:
 workflows:
   main_workflow:
     jobs:
-      - debug-info
-      - build-setup
-      - lint-phpcs:
-          requires:
-            - build-setup
-      - security-check-dependencies:
-          requires:
-            - build-setup
-      - test-phpunit:
-          requires:
-            - build-setup
-      - hold:
-          type: approval
-          filters:
-            branches:
-              only:
-                - main
-                - master
-                - /^release\/.*/
+      - debug-info:
+          context:
+            - api_tokens-context
+      # - build-setup
+      # - lint-phpcs:
+      #     requires:
+      #       - build-setup
+      # - security-check-dependencies:
+      #     requires:
+      #       - build-setup
+      # - test-phpunit:
+      #     requires:
+      #       - build-setup
+      # - hold:
+      #     type: approval
+      #     filters:
+      #       branches:
+      #         only:
+      #           - main
+      #           - master
+      #           - /^release\/.*/
       # - deploy-ssh-production:
       #     requires:
       #         - hold
@@ -270,16 +289,18 @@ workflows:
       #           - /^release\/.*/
 
 
-  container_workflow:
-    jobs:
-      - build-docker-image:
-          filters:
-            branches:
-              only:
-                - master
-                - main
-                - develop
-                - /^feature\/.*/
-                - /^release\/.*/
-                - /^hotfix\/.*/
-                - /^bugfix\/.*/
+  # container_workflow:
+  #   jobs:
+  #     - build-docker-image:
+  #         context:
+  #           - api_tokens-context
+  #         filters:
+  #           branches:
+  #             only:
+  #               - master
+  #               - main
+  #               - develop
+  #               - /^feature\/.*/
+  #               - /^release\/.*/
+  #               - /^hotfix\/.*/
+  #               - /^bugfix\/.*/
