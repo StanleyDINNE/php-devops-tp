@@ -20,7 +20,7 @@ git commit --message "Fix Dockerfile & other other small changes" --author "Chri
 # Check images
 docker images
 # Build the project image
-docker build --tag php-devops-tp --file Docker/Dockerfile .
+docker build --tag php-devops-tp --file docker/Dockerfile .
 
 # Summon container running in the background
 docker run --detach --interactive --tty \
