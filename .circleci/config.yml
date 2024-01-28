@@ -181,9 +181,6 @@ jobs:
 
             # Login to GHCR
             echo "$GHCR_PAT" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
-            echo "Displaying $HOME/.docker/config.json"
-            cat $HOME/.docker/config.json
-            echo "End of display"
 
             # Build the Docker image
             docker build \
