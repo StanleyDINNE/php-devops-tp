@@ -130,7 +130,9 @@ jobs:
       - *attach_workspace
       - run:
           name: Install `phpmetrics`
-          command: composer require --dev "phpmetrics/phpmetrics=*"
+          command: |
+            composer require --dev "phpmetrics/phpmetrics=*"
+            composer install
       - run:
           name: Run phpmetrics
           command: |
@@ -172,7 +174,7 @@ jobs:
               echo "An exception occured during PHPMD execution."
             elif [[ $result == 2 ]]; then
               echo "Rule violations detected."
-              echo "You can also prevent this behaviour with the `--ignore-violations-on-exit` flag, which will result to a 0 even if any violations are found."
+              echo 'You can also prevent this behaviour with the `--ignore-violations-on-exit` flag, which will result to a 0 even if any violations are found.'
             elif [[ $result == 3 ]]; then
               echo "Some tested files could not processed"
             else
