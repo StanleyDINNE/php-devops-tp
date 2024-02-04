@@ -46,6 +46,20 @@ attach_workspace: &attach_workspace
     # Must be absolute path or relative path from working_directory
     at: ~/project
 
+# Only keep the lint reports
+lint_report_persist: &lint_report_persist
+  persist_to_workspace:
+    root: .
+    paths:
+      - reports/lint
+
+# Only keep the metrics reports
+metrics_report_persist: &metrics_report_persist
+  persist_to_workspace:
+    root: .
+    paths:
+      - reports/metrics
+
 # This main executor is used by all jobs unless otherwise specified
 executors:
   php-executor:
@@ -104,6 +118,16 @@ jobs:
           key: v1-dependencies-{{ checksum "composer.lock" }}
       - *persist_to_workspace
 
+  # Passthrough job to create a report directory
+  lint-setup:
+    executor: simple-executor
+    steps:
+      - *attach_workspace
+      - run:
+          name: Create report folder
+          command: mkdir -p reports/lint
+      - *persist_to_workspace
+
   lint-phpcs:
     executor: php-executor
     steps:
@@ -114,47 +138,13 @@ jobs:
       - run:
           name: Run PHP_CodeSniffer with Custom Ruleset in the project root
           command: |
-            ./vendor/bin/phpcs --standard=phpcs.xml --report-file=phpcs-report.txt --report=checkstyle --extensions=php --ignore=vendor/ .
+            ./vendor/bin/phpcs --standard=phpcs.xml --report-file=reports/lint/phpcs-report.txt --report=checkstyle --extensions=php --ignore=vendor/ .
             result=$?
             if [ $result -eq 1 ] || [ $result -eq 2 ]; then
               exit 0
             fi
             exit $result
-      - store_artifacts:
-          path: phpcs-report.txt
-          destination: phpcs-report
-
-  metrics-phpmetrics:
-    executor: php-executor
-    steps:
-      - *attach_workspace
-      - run:
-          name: Install `phpmetrics`
-          command: |
-            composer require --dev "phpmetrics/phpmetrics=*"
-            composer install
-      - run:
-          name: Run phpmetrics
-          command: |
-            php ./vendor/bin/phpmetrics --report-html=phpmetrics src/
-            exit $?
-      - store_artifacts:
-          path: phpmetrics # Directory containing stuff and "index.html"
-          destination: phpmetrics-report
-
-  metrics-phploc:
-    executor: php-executor
-    steps:
-      - *attach_workspace
-      - run:
-          name: Install `phploc`
-          command: wget https://phar.phpunit.de/phploc.phar
-      - run:
-          name: Run phploc
-          command: php phploc.phar src/ > phploc-report.txt
-      - store_artifacts:
-          path: phploc-report.txt
-          destination: phploc-report
+      - *lint_report_persist
 
   lint-phpmd:
     executor: php-executor
@@ -166,7 +156,7 @@ jobs:
       - run:
           name: Run phpmd
           command: |
-            php ./vendor/bin/phpmd src/ html .circleci/plugins/phpmd_ruleset.xml > phpmd-report.html
+            php ./vendor/bin/phpmd src/ html .circleci/plugins/phpmd_ruleset.xml > reports/lint/phpmd-report.html
             result=$?
             if [[ $result == 0 ]]; then
               echo "No exception of rule violation detected."
@@ -181,9 +171,7 @@ jobs:
               echo "An unknown exception occured"
             fi
             exit $result
-      - store_artifacts:
-          path: phpmd-report.html
-          destination: phpmd-report
+      - *lint_report_persist
 
   # lint-php-doc-check:
   #   executor: php-executor
@@ -198,6 +186,68 @@ jobs:
   #     - store_artifacts:
   #         path: # TODO
   #         destination: # TODO
+
+  lint-reports:
+    executor: simple-executor
+    steps:
+      - attach_workspace:
+          at: reports/lint
+      - store_artifacts:
+          path: phpcs-report.txt
+          destination: phpcs-report
+      - store_artifacts:
+          path: phpmd-report.html
+          destination: phpmd-report
+
+  # Passthrough job to create a report directory
+  metrics-setup:
+    executor: simple-executor
+    steps:
+      - *attach_workspace
+      - run:
+          name: Create report folder
+          command: mkdir -p reports/metrics
+      - *persist_to_workspace
+
+  metrics-phpmetrics:
+    executor: php-executor
+    steps:
+      - *attach_workspace
+      - run:
+          name: Install `phpmetrics`
+          command: |
+            composer require --dev "phpmetrics/phpmetrics=*"
+            composer install
+      - run:
+          name: Run phpmetrics
+          command: |
+            php ./vendor/bin/phpmetrics --report-html=reports/metrics/phpmetrics src/
+            exit $?
+      - *metrics_report_persist
+
+  metrics-phploc:
+    executor: php-executor
+    steps:
+      - *attach_workspace
+      - run:
+          name: Install `phploc`
+          command: wget https://phar.phpunit.de/phploc.phar
+      - run:
+          name: Run phploc
+          command: php phploc.phar src/ > reports/metrics/phploc-report.txt
+      - *metrics_report_persist
+
+  metrics-reports:
+    executor: simple-executor
+    steps:
+      - attach_workspace:
+          at: reports/metrics
+      - store_artifacts:
+          path: phpmetrics # Directory containing stuff and "index.html"
+          destination: phpmetrics-report
+      - store_artifacts:
+          path: phploc-report.txt
+          destination: phploc-report
 
   security-check-dependencies:
     executor: php-executor
@@ -303,18 +353,32 @@ workflows:
     jobs:
       - debug-info
       - build-setup
+      - lint-setup:
+          requires:
+            - build-setup
       - lint-phpcs:
+          requires:
+            - lint-setup
+      - lint-phpmd:
+          requires:
+            - lint-setup
+      - lint-reports:
+          requires:
+            - lint-phpcs
+            - lint-phpmd
+      - metrics-setup:
           requires:
             - build-setup
       - metrics-phpmetrics:
           requires:
-            - build-setup
+            - metrics-setup
       - metrics-phploc:
           requires:
-            - build-setup
-      - lint-phpmd:
+            - metrics-setup
+      - metrics-reports:
           requires:
-            - build-setup
+            - metrics-phpmetrics
+            - metrics-phploc
       - security-check-dependencies:
           requires:
             - build-setup
