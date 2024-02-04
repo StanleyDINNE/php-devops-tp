@@ -81,6 +81,7 @@ jobs:
             echo "Current path: $PATH"
             echo "Current working directory: $(pwd)"
             echo "Current date: $(date)"
+            ls -la
             echo "--------------------"
             env
 
@@ -117,12 +118,84 @@ jobs:
             result=$?
             if [ $result -eq 1 ] || [ $result -eq 2 ]; then
               exit 0
-            else
-              exit $result
             fi
+            exit $result
       - store_artifacts:
           path: phpcs-report.txt
           destination: phpcs-report
+
+  metrics-phpmetrics:
+    executor: php-executor
+    steps:
+      - *attach_workspace
+      - run:
+          name: Install `phpmetrics`
+          command: composer require --dev "phpmetrics/phpmetrics=*"
+      - run:
+          name: Run phpmetrics
+          command: |
+            php ./vendor/bin/phpmetrics --report-html=phpmetrics src/
+            exit $?
+      - store_artifacts:
+          path: phpmetrics # Directory containing stuff and "index.html"
+          destination: phpmetrics-report
+
+  metrics-phploc:
+    executor: php-executor
+    steps:
+      - *attach_workspace
+      - run:
+          name: Install `phploc`
+          command: wget https://phar.phpunit.de/phploc.phar
+      - run:
+          name: Run phploc
+          command: php phploc.phar src/ > phploc-report.txt
+      - store_artifacts:
+          path: phploc-report.txt
+          destination: phploc-report
+
+  lint-phpmd:
+    executor: php-executor
+    steps:
+      - *attach_workspace
+      - run:
+          name: Install `phpmd`
+          command: composer require --dev "phpmd/phpmd=@stable"
+      - run:
+          name: Run phpmd
+          command: |
+            php ./vendor/bin/phpmd src/ html .circleci/plugins/phpmd_ruleset.xml > phpmd-report.html
+            result=$?
+            if [[ $result == 0 ]]; then
+              echo "No exception of rule violation detected."
+            elif [[ $result == 1 ]]; then
+              echo "An exception occured during PHPMD execution."
+            elif [[ $result == 2 ]]; then
+              echo "Rule violations detected."
+              echo "You can also prevent this behaviour with the `--ignore-violations-on-exit` flag, which will result to a 0 even if any violations are found."
+            elif [[ $result == 3 ]]; then
+              echo "Some tested files could not processed"
+            else
+              echo "An unknown exception occured"
+            fi
+            exit $result
+      - store_artifacts:
+          path: phpmd-report.html
+          destination: phpmd-report
+
+  # lint-php-doc-check:
+  #   executor: php-executor
+  #   steps:
+  #     - *attach_workspace
+  #     - run:
+  #         name: Install `php-doc-check`
+  #         command: composer require --dev "niels-de-blaauw/php-doc-check=*"
+  #     - run:
+  #         name: Run php-doc-check
+  #         command: # TODO
+  #     - store_artifacts:
+  #         path: # TODO
+  #         destination: # TODO
 
   security-check-dependencies:
     executor: php-executor
@@ -151,6 +224,8 @@ jobs:
               echo "No PHPUnit tests found, skipping job."
               echo "export SKIP_PHPUNIT=true" >> $BASH_ENV
               circleci step halt
+            else
+              echo "Unit tests found (via 'phpunit.xml' file)"
             fi
       - run:
           name: Install PHPUnit
@@ -158,6 +233,8 @@ jobs:
       - run:
           name: Run PHPUnit
           command: ./vendor/bin/phpunit --testsuite=Unit
+      - store_test_results:
+          path: test-results
 
   build-docker-image:
     executor: builder-executor
@@ -227,20 +304,29 @@ workflows:
       - lint-phpcs:
           requires:
             - build-setup
+      - metrics-phpmetrics:
+          requires:
+            - build-setup
+      - metrics-phploc:
+          requires:
+            - build-setup
+      - lint-phpmd:
+          requires:
+            - build-setup
       - security-check-dependencies:
           requires:
             - build-setup
       - test-phpunit:
           requires:
             - build-setup
-      - hold:
-          type: approval
-          filters:
-            branches:
-              only:
-                - main
-                - master
-                - /^release\/.*/
+      # - hold: # Not needed
+      #     type: approval
+      #     filters:
+      #       branches:
+      #         only:
+      #           - main
+      #           - master
+      #           - /^release\/.*/
       # - deploy-ssh-production:
       #     requires:
       #         - hold
