@@ -99,6 +99,8 @@ jobs:
             echo "--------------------"
             env
 
+
+
   build-setup:
     executor: php-executor
     steps:
@@ -183,9 +185,7 @@ jobs:
   #     - run:
   #         name: Run php-doc-check
   #         command: # TODO
-  #     - store_artifacts:
-  #         path: # TODO
-  #         destination: # TODO
+  #     - *lint_report_persist
 
   lint-reports:
     executor: simple-executor
@@ -304,9 +304,25 @@ jobs:
               exit 0
             fi
 
-            # Sanitize the repository name and branch name
+            [[ "$date" =~ ^[0-9]{8}$ ]] && echo "yes"
+
+            # Sanitize the repository name, branch name, and the tag
             REPOSITORY=$(echo "ghcr.io/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME" | tr '[:upper:]' '[:lower:]' | tr -d '_')
-            TAG=$(echo $CIRCLE_BRANCH | tr '[:upper:]' '[:lower:]' | tr '/' '-' | tr -cd '[:alnum:]._-' | cut -c 1-128)
+            function smallcaps_alphanum_max128 {
+              read name
+              echo "$name" | tr '[:upper:]' '[:lower:]' | tr '/' '-' | tr -cd '[:alnum:]._-' | cut -c 1-128
+            }
+            BRANCH="$(echo $CIRCLE_BRANCH | smallcaps_alphanum_max128)"
+            TAG="$(echo $CIRCLE_TAG | smallcaps_alphanum_max128)"
+
+            # Decide if using compliant TAG, or default to BRANCH_date
+            if [[ ! "$TAG" =~ ^v([0-9]{1,3}\.){2}[0-9]{1,3}$ ]]; then
+              [[ -z "$TAG" ]] \
+                && echo "Tag not set on commit." \
+                || echo 'Tag not compliant with standard format. Tag should be named "v${major}.${minor}.${revision}" with each digit in range 0..999. E.g. "v3.7.72"'
+              echo "Defaulting to branch name + today's date as the Docker image tag. E.g. \"main_1970-01-01\""
+              TAG="${BRANCH}_$(date +%Y-%m-%d)"
+            fi
 
             # Login to GHCR
             echo "$GHCR_PAT" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
@@ -327,26 +343,45 @@ jobs:
             # Push the Docker image
             docker push $REPOSITORY:$TAG
 
-  # deploy-ssh-staging:
-  #   executor: simple-executor
-  #   steps:
-  #     - add_ssh_keys:
-  #         fingerprints:
-  #           - "${STAGING_SSH_FINGERPRINT}"
-  #     - deploy:
-  #         name: Deploy to AWS
-  #         command: |
-  #           set -x
-  #           ssh -o StrictHostKeyChecking=no $STAGING_SSH_USER@$STAGING_SSH_HOST \<< EOF
-  #           PHP_FPM_VERSION=$(php -v | head -n 1 | cut -d ' ' -f 2 | cut -d '.' -f 1-2)
-  #           cd $STAGING_DEPLOY_DIRECTORY
-  #           git pull origin $CIRCLE_BRANCH
-  #           composer install --optimize-autoloader --no-interaction --prefer-dist
-  #           (flock -w 10 9 || exit 1; sudo -S service php${PHP_FPM_VERSION}-fpm restart ) 9>/tmp/fpm.lock
-  #           EOF
+  deploy-ssh-staging:
+    executor: simple-executor
+    environment: # Temporary
+      STAGING_DEPLOY_DIRECTORY: staging
+    steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "$STAGING_SSH_FINGERPRINT"
+      - deploy:
+          name: Deploy to AWS
+          command: |
+            set -x
+            ssh -o StrictHostKeyChecking=no $STAGING_SSH_USER@$STAGING_SSH_HOST \<< EOF
+            PHP_FPM_VERSION=$(php -v | head -n 1 | cut -d ' ' -f 2 | cut -d '.' -f 1-2)
+            cd $STAGING_DEPLOY_DIRECTORY
+            git pull origin $CIRCLE_BRANCH
+            composer install --optimize-autoloader --no-interaction --prefer-dist
+            (flock -w 10 9 || exit 1; sudo -S service php${PHP_FPM_VERSION}-fpm restart ) 9>/tmp/fpm.lock
+            EOF
 
-#  deploy-ssh-production:
-# It's up to you :)
+  # TODO: $PRODUCTION_SSH_USER, $PRODUCTION_SSH_FINGERPRINT, $PRODUCTION_SSH_HOST, $PRODUCTION_DEPLOY_DIRECTORY
+  # TODO: utiliser l'image docker sur le serveur
+  deploy-ssh-production:
+    executor: simple-executor
+    steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "$PRODUCTION_SSH_FINGERPRINT"
+      - deploy:
+          name: Deploy to AWS
+          command: |
+            set -x
+            ssh -o StrictHostKeyChecking=no $PRODUCTION_SSH_USER@$PRODUCTION_SSH_HOST \<< EOF
+            PHP_FPM_VERSION=$(php -v | head -n 1 | cut -d ' ' -f 2 | cut -d '.' -f 1-2)
+            cd $PRODUCTION_DEPLOY_DIRECTORY
+            git pull origin $CIRCLE_BRANCH
+            composer install --optimize-autoloader --no-interaction --prefer-dist
+            (flock -w 10 9 || exit 1; sudo -S service php${PHP_FPM_VERSION}-fpm restart ) 9>/tmp/fpm.lock
+            EOF
 
 workflows:
   main_workflow:
@@ -394,16 +429,20 @@ workflows:
       #           - master
       #           - /^release\/.*/
       # - deploy-ssh-production:
-      #     requires:
-      #         - hold
+      #     # requires:
+      #     #   - hold
+      #     context:
+      #       - api_tokens-context
       #     filters:
       #       branches:
       #         only:
       #           - main
       #           - master
       # - deploy-ssh-staging:
-      #     requires:
-      #       - hold
+      #     # requires:
+      #     #   - hold
+      #     context:
+      #       - api_tokens-context
       #     filters:
       #       branches:
       #         only:
@@ -417,10 +456,13 @@ workflows:
           filters:
             branches:
               only:
-                - master
+                # - master
                 - main
                 - develop
                 - /^feature\/.*/
                 - /^release\/.*/
                 - /^hotfix\/.*/
                 - /^bugfix\/.*/
+            # tags:
+            #   only:
+            #     - /^release-.*/
