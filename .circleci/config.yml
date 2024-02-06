@@ -46,19 +46,12 @@ attach_workspace: &attach_workspace
     # Must be absolute path or relative path from working_directory
     at: ~/project
 
-# Only keep the lint reports
-lint_report_persist: &lint_report_persist
+# Only keep the reports
+report_persist: &report_persist
   persist_to_workspace:
     root: .
     paths:
-      - reports/lint
-
-# Only keep the metrics reports
-metrics_report_persist: &metrics_report_persist
-  persist_to_workspace:
-    root: .
-    paths:
-      - reports/metrics
+      - reports
 
 # This main executor is used by all jobs unless otherwise specified
 executors:
@@ -99,8 +92,25 @@ jobs:
             echo "--------------------"
             env
 
+  waiter-lint_reports:
+    executor: simple-executor
+    steps:
+      - run: |
+          while [[ $(curl --location --request GET "https://circleci.com/api/v2/workflow/$CIRCLE_WORKFLOW_ID/job" --header "Circle-Token: $CIRCLECI_API_TOKEN" | jq -r '.items[]|select(.name | test("^(?!waiter).*$"))|.status' | grep -c "running") -gt 0 ]]
+            do
+              sleep 1
+            done
+      - run: echo "All required jobs have now completed"
 
-
+  waiter-metrics_reports:
+    executor: simple-executor
+    steps:
+      - run: |
+          while [[ $(curl --location --request GET "https://circleci.com/api/v2/workflow/$CIRCLE_WORKFLOW_ID/job" --header "Circle-Token: $CIRCLECI_API_TOKEN" | jq -r '.items[]|select(.name  | test("^(?!waiter).*$"))|.status' | grep -c "running") -gt 0 ]]
+            do
+              sleep 1
+            done
+      - run: echo "All required jobs have now completed"
 
   build-setup:
     executor: php-executor
@@ -147,7 +157,7 @@ jobs:
               exit 0
             fi
             exit $result
-      - *lint_report_persist
+      - *report_persist
 
   lint-phpmd:
     executor: php-executor
@@ -174,7 +184,7 @@ jobs:
               echo "An unknown exception occured"
             fi
             exit $result
-      - *lint_report_persist
+      - *report_persist
 
   # lint-php-doc-check:
   #   executor: php-executor
@@ -186,13 +196,13 @@ jobs:
   #     - run:
   #         name: Run php-doc-check
   #         command: # TODO
-  #     - *lint_report_persist
+  #     - *report_persist
 
   lint-reports:
     executor: simple-executor
     steps:
       - attach_workspace:
-          at: reports/lint
+          at: ~/project/reports/lint
       - store_artifacts:
           path: phpcs-report.txt
           destination: phpcs-report
@@ -224,7 +234,7 @@ jobs:
           command: |
             php ./vendor/bin/phpmetrics --report-html=reports/metrics/phpmetrics src/
             exit $?
-      - *metrics_report_persist
+      - *report_persist
 
   metrics-phploc:
     executor: php-executor
@@ -236,13 +246,13 @@ jobs:
       - run:
           name: Run phploc
           command: php phploc.phar src/ > reports/metrics/phploc-report.txt
-      - *metrics_report_persist
+      - *report_persist
 
   metrics-reports:
     executor: simple-executor
     steps:
       - attach_workspace:
-          at: reports/metrics
+          at: ~/project/reports/metrics
       - store_artifacts:
           path: phpmetrics # Directory containing stuff and "index.html"
           destination: phpmetrics-report
@@ -341,8 +351,11 @@ jobs:
             --build-arg PROJECT_USERNAME=$CIRCLE_PROJECT_USERNAME \
             .
 
+            docker tag $REPOSITORY:$TAG $REPOSITORY:latest
+
             # Push the Docker image
             docker push $REPOSITORY:$TAG
+            docker push $REPOSITORY:latest
 
   deploy-ssh-staging:
     executor: simple-executor
@@ -359,12 +372,12 @@ jobs:
             ssh -o StrictHostKeyChecking=no $STAGING_SSH_USER@$STAGING_SSH_HOST \<< EOF
             PHP_FPM_VERSION=$(php -v | head -n 1 | cut -d ' ' -f 2 | cut -d '.' -f 1-2)
             cd $STAGING_DEPLOY_DIRECTORY
-            git pull origin $CIRCLE_BRANCH
-            composer install --optimize-autoloader --no-interaction --prefer-dist
+            sudo git pull origin $CIRCLE_BRANCH
+            sudo composer install --optimize-autoloader --no-interaction --prefer-dist
             (flock -w 10 9 || exit 1; sudo -S service php${PHP_FPM_VERSION}-fpm restart ) 9>/tmp/fpm.lock
             EOF
 
-  # TODO: $PRODUCTION_SSH_USER, $PRODUCTION_SSH_FINGERPRINT, $PRODUCTION_SSH_HOST, $PRODUCTION_DEPLOY_DIRECTORY
+  # TODO: $PRODUCTION_SSH_USER, $PRODUCTION_SSH_FINGERPRINT, $PRODUCTION_SSH_HOST
   # TODO: utiliser l'image docker sur le serveur
   deploy-ssh-production:
     executor: simple-executor
@@ -373,15 +386,21 @@ jobs:
           fingerprints:
             - "$PRODUCTION_SSH_FINGERPRINT"
       - deploy:
-          name: Deploy to AWS
+          name: Deploy docker image to AWS
           command: |
+            REPOSITORY=$(echo "ghcr.io/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME" | tr '[:upper:]' '[:lower:]' | tr -d '_')
+            CONTAINER_NAME=$(echo "${CIRCLE_PROJECT_REPONAME}_latest_container" | tr '[:upper:]' '[:lower:]' | tr -d '_')
+
             set -x
             ssh -o StrictHostKeyChecking=no $PRODUCTION_SSH_USER@$PRODUCTION_SSH_HOST \<< EOF
-            PHP_FPM_VERSION=$(php -v | head -n 1 | cut -d ' ' -f 2 | cut -d '.' -f 1-2)
-            cd $PRODUCTION_DEPLOY_DIRECTORY
-            git pull origin $CIRCLE_BRANCH
-            composer install --optimize-autoloader --no-interaction --prefer-dist
-            (flock -w 10 9 || exit 1; sudo -S service php${PHP_FPM_VERSION}-fpm restart ) 9>/tmp/fpm.lock
+            sudo docker stop "$CONTAINER_NAME"
+            sudo docker rm "$CONTAINER_NAME"
+            sudo docker pull "$REPOSITORY:latest"
+            sudo docker run --detach \
+              --publish published=127.0.0.1:443,target=443,protocol=tcp \
+              --add-host host.docker.internal:host-gateway \
+              --name "$CONTAINER_NAME" "$REPOSITORY:latest"
+            sudo docker ps
             EOF
 
 workflows:
@@ -398,10 +417,14 @@ workflows:
       - lint-phpmd:
           requires:
             - lint-setup
+      - waiter-lint_reports:
+          requires:
+            - build-setup
       - lint-reports:
           requires:
-            - lint-phpcs
-            - lint-phpmd
+            - waiter-lint_reports
+            # - lint-phpcs
+            # - lint-phpmd
       - metrics-setup:
           requires:
             - build-setup
@@ -411,10 +434,14 @@ workflows:
       - metrics-phploc:
           requires:
             - metrics-setup
+      - waiter-metrics_reports:
+          requires:
+            - build-setup
       - metrics-reports:
           requires:
-            - metrics-phpmetrics
-            - metrics-phploc
+            - waiter-metrics_reports
+            # - metrics-phpmetrics
+            # - metrics-phploc
       - security-check-dependencies:
           requires:
             - build-setup
@@ -427,27 +454,18 @@ workflows:
       #       branches:
       #         only:
       #           - main
-      #           - master
+      #           # - master
       #           - /^release\/.*/
-      # - deploy-ssh-production:
-      #     # requires:
-      #     #   - hold
-      #     context:
-      #       - api_tokens-context
-      #     filters:
-      #       branches:
-      #         only:
-      #           - main
-      #           - master
-      # - deploy-ssh-staging:
-      #     # requires:
-      #     #   - hold
-      #     context:
-      #       - api_tokens-context
-      #     filters:
-      #       branches:
-      #         only:
-      #           - /^release\/.*/
+      - deploy-ssh-staging:
+          # requires:
+          #   - hold
+          context:
+            - api_tokens-context
+          filters:
+            branches:
+              only:
+                # - develop
+                - /^release\/.*/
 
   container_workflow:
     jobs:
@@ -467,3 +485,14 @@ workflows:
             # tags:
             #   only:
             #     - /^release-.*/
+      - deploy-ssh-production:
+          requires:
+            - build-docker-image
+            # - hold
+          context:
+            - api_tokens-context
+          filters:
+            branches:
+              only:
+                - main
+                # - master

@@ -84,9 +84,6 @@ RUN mkdir -p /var/www/html/public \
 # Copy existing application directory contents
 COPY . /var/www/html
 
-RUN rm -rf /var/www/html/docker \
-	&& rm -rf /var/www/html/documents
-
 # Ensure the volumes directories exist
 RUN mkdir -p /var/www/html/vendor \
 	&& mkdir -p /var/www/html/database

@@ -29,3 +29,6 @@ docker
 .phpunit.result.cache
 .vagrant
 vendor
+
+# Reports
+documents
