@@ -315,8 +315,6 @@ jobs:
               exit 0
             fi
 
-            [[ "$date" =~ ^[0-9]{8}$ ]] && echo "yes"
-
             # Sanitize the repository name, branch name, and the tag
             REPOSITORY=$(echo "ghcr.io/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME" | tr '[:upper:]' '[:lower:]' | tr -d '_')
             function smallcaps_alphanum_max128 {
