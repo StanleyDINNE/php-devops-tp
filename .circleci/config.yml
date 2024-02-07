@@ -359,8 +359,8 @@ jobs:
 
   deploy-ssh-staging:
     executor: simple-executor
-    environment: # Temporary
-      STAGING_DEPLOY_DIRECTORY: staging
+    environment:
+      STAGING_DEPLOY_DIRECTORY: /var/www/html
     steps:
       - add_ssh_keys:
           fingerprints:
@@ -396,10 +396,7 @@ jobs:
             sudo docker stop "$CONTAINER_NAME"
             sudo docker rm "$CONTAINER_NAME"
             sudo docker pull "$REPOSITORY:latest"
-            sudo docker run --detach \
-              --publish published=127.0.0.1:443,target=443,protocol=tcp \
-              --add-host host.docker.internal:host-gateway \
-              --name "$CONTAINER_NAME" "$REPOSITORY:latest"
+            sudo docker run --detach --publish 80:80 --name "$CONTAINER_NAME" "$REPOSITORY:latest"
             sudo docker ps
             EOF
 
@@ -479,7 +476,7 @@ workflows:
                 - main
                 - develop
                 - /^feature\/.*/
-                - /^release\/.*/
+                # - /^release\/.*/ #TODO: re-enable later
                 - /^hotfix\/.*/
                 - /^bugfix\/.*/
             # tags:
