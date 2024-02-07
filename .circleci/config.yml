@@ -358,20 +358,26 @@ jobs:
   deploy-ssh-staging:
     executor: simple-executor
     environment:
-      STAGING_DEPLOY_DIRECTORY: /var/www/html
+      # PHP_FPM_VERSION=$(php -v | head -n 1 | cut -d ' ' -f 2 | cut -d '.' -f 1-2) # This returns "php: command not found" for some odd reason
+      PHP_FPM_VERSION: "8.2"
     steps:
       - add_ssh_keys:
           fingerprints:
             - "$STAGING_SSH_FINGERPRINT"
+      # /var/www/html: Content deleted first, then re-created, be careful
       - deploy:
           name: Deploy to AWS
+          # Thanks to https://stackoverflow.com/a/67055385
           command: |
             set -x
             ssh -o StrictHostKeyChecking=no $STAGING_SSH_USER@$STAGING_SSH_HOST \<< EOF
-            PHP_FPM_VERSION=$(php -v | head -n 1 | cut -d ' ' -f 2 | cut -d '.' -f 1-2)
-            cd $STAGING_DEPLOY_DIRECTORY
-            sudo git pull origin $CIRCLE_BRANCH
-            sudo composer install --optimize-autoloader --no-interaction --prefer-dist
+            cd "/home/$STAGING_SSH_USER/$CIRCLE_PROJECT_REPONAME" # `STAGING_DEPLOY_DIRECTORY`
+            PHP_FPM_VERSION="8.2"
+            git checkout --track origin/$CIRCLE_BRANCH
+            git reset --hard origin/$CIRCLE_BRANCH # To avoid conflict with ammend commits, merges, etc. : discard local + pull
+            composer install --optimize-autoloader --no-interaction --prefer-dist
+            sudo rm -rf /var/www/html/*
+            sudo cp -r ./* /var/www/html
             (flock -w 10 9 || exit 1; sudo -S service php${PHP_FPM_VERSION}-fpm restart ) 9>/tmp/fpm.lock
             EOF
 
