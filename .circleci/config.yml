@@ -138,7 +138,7 @@ jobs:
       - *attach_workspace
       - run:
           name: Create report folder
-          command: mkdir -p reports/lint
+          command: mkdir -p ~/project/reports/lint
       - *persist_to_workspace
 
   lint-phpcs:
@@ -151,7 +151,7 @@ jobs:
       - run:
           name: Run PHP_CodeSniffer with Custom Ruleset in the project root
           command: |
-            ./vendor/bin/phpcs --standard=phpcs.xml --report-file=reports/lint/phpcs-report.txt --report=checkstyle --extensions=php --ignore=vendor/ .
+            ./vendor/bin/phpcs --standard=phpcs.xml --report-file=~/project/reports/lint/phpcs-report.txt --report=checkstyle --extensions=php --ignore=vendor/ .
             result=$?
             if [ $result -eq 1 ] || [ $result -eq 2 ]; then
               exit 0
@@ -169,7 +169,7 @@ jobs:
       - run:
           name: Run phpmd
           command: |
-            php ./vendor/bin/phpmd src/ html .circleci/plugins/phpmd_ruleset.xml > reports/lint/phpmd-report.html
+            php ./vendor/bin/phpmd src/ html .circleci/plugins/phpmd_ruleset.xml > ~/project/reports/lint/phpmd-report.html
             result=$?
             if [[ $result == 0 ]]; then
               echo "No exception of rule violation detected."
@@ -217,7 +217,7 @@ jobs:
       - *attach_workspace
       - run:
           name: Create report folder
-          command: mkdir -p reports/metrics
+          command: mkdir -p ~/project/reports/metrics
       - *persist_to_workspace
 
   metrics-phpmetrics:
@@ -228,11 +228,12 @@ jobs:
           name: Install `phpmetrics`
           command: |
             composer require --dev "phpmetrics/phpmetrics=*"
+            composer update
             composer install
       - run:
           name: Run phpmetrics
           command: |
-            php ./vendor/bin/phpmetrics --report-html=reports/metrics/phpmetrics src/
+            php ./vendor/bin/phpmetrics --report-html=~/project/reports/metrics/phpmetrics src/
             exit $?
       - *report_persist
 
@@ -245,7 +246,7 @@ jobs:
           command: wget https://phar.phpunit.de/phploc.phar
       - run:
           name: Run phploc
-          command: php phploc.phar src/ > reports/metrics/phploc-report.txt
+          command: php phploc.phar src/ > ~/project/reports/metrics/phploc-report.txt
       - *report_persist
 
   metrics-reports:
@@ -381,8 +382,7 @@ jobs:
             (flock -w 10 9 || exit 1; sudo -S service php${PHP_FPM_VERSION}-fpm restart ) 9>/tmp/fpm.lock
             EOF
 
-  # TODO: $PRODUCTION_SSH_USER, $PRODUCTION_SSH_FINGERPRINT, $PRODUCTION_SSH_HOST
-  # TODO: utiliser l'image docker sur le serveur
+  # Utilisation de l'image docker sur le serveur de production
   deploy-ssh-production:
     executor: simple-executor
     steps:

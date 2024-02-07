@@ -572,3 +572,7 @@ Il faut que les utilisateurs utilisent leur clef privée. C'est bien, ça évite
 #todo[docker -e (pour mettre la variable d'environnement Infisical
 
 Définir soit-même un secret (regarder le .env.example)]
+
+À un moment, on voulait passer une variable d'environnement récupérée depuis un contexte CircleCI, puis l'injecter dans une commande sudo pour mettre à jour les machines via ssh.
+Mais c'est une mauvaise idée, car le mot de passe sera ainsi écrit dans #file_folder("~/.bash_history").
+À la place, certaines commandes ont été configurée pour pouvoir s'exécuter dans besoin de mot de passe, et ce en configurant ```bash sudo visudo```
