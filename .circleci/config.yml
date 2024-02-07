@@ -49,7 +49,7 @@ attach_workspace: &attach_workspace
 # Only keep the reports
 report_persist: &report_persist
   persist_to_workspace:
-    root: .
+    root: ~/project
     paths:
       - reports
 
@@ -151,13 +151,16 @@ jobs:
       - run:
           name: Run PHP_CodeSniffer with Custom Ruleset in the project root
           command: |
-            ./vendor/bin/phpcs --standard=phpcs.xml --report-file=~/project/reports/lint/phpcs-report.txt --report=checkstyle --extensions=php --ignore=vendor/ .
+            ./vendor/bin/phpcs --standard=phpcs.xml --report-file=reports/lint/phpcs-report.txt --report=checkstyle --extensions=php --ignore=vendor/ .
             result=$?
             if [ $result -eq 1 ] || [ $result -eq 2 ]; then
               exit 0
             fi
             exit $result
-      - *report_persist
+      # - *report_persist
+      - store_artifacts:
+          path: reports/lint/phpcs-report.txt
+          destination: phpcs-report
 
   lint-phpmd:
     executor: php-executor
@@ -169,7 +172,7 @@ jobs:
       - run:
           name: Run phpmd
           command: |
-            php ./vendor/bin/phpmd src/ html .circleci/plugins/phpmd_ruleset.xml > ~/project/reports/lint/phpmd-report.html
+            php ./vendor/bin/phpmd src/ html .circleci/plugins/phpmd_ruleset.xml > reports/lint/phpmd-report.html
             result=$?
             if [[ $result == 0 ]]; then
               echo "No exception of rule violation detected."
@@ -184,7 +187,10 @@ jobs:
               echo "An unknown exception occured"
             fi
             exit $result
-      - *report_persist
+      # - *report_persist
+      - store_artifacts:
+          path: reports/lint/phpmd-report.html
+          destination: phpmd-report
 
   # lint-php-doc-check:
   #   executor: php-executor
@@ -233,9 +239,12 @@ jobs:
       - run:
           name: Run phpmetrics
           command: |
-            php ./vendor/bin/phpmetrics --report-html=~/project/reports/metrics/phpmetrics src/
+            php ./vendor/bin/phpmetrics --report-html=reports/metrics/phpmetrics src/
             exit $?
-      - *report_persist
+      # - *report_persist
+      - store_artifacts:
+          path: reports/metrics/phpmetrics # Directory containing stuff and "index.html"
+          destination: phpmetrics-report
 
   metrics-phploc:
     executor: php-executor
@@ -246,8 +255,11 @@ jobs:
           command: wget https://phar.phpunit.de/phploc.phar
       - run:
           name: Run phploc
-          command: php phploc.phar src/ > ~/project/reports/metrics/phploc-report.txt
-      - *report_persist
+          command: php phploc.phar src/ > reports/metrics/phploc-report.txt
+      # - *report_persist
+      - store_artifacts:
+          path: reports/metrics/phploc-report.txt
+          destination: phploc-report
 
   metrics-reports:
     executor: simple-executor
@@ -359,7 +371,8 @@ jobs:
   deploy-ssh-staging:
     executor: simple-executor
     environment:
-      # PHP_FPM_VERSION=$(php -v | head -n 1 | cut -d ' ' -f 2 | cut -d '.' -f 1-2) # This returns "php: command not found" for some odd reason
+      # Used in the injected ssh command, it returns "php: command not found" for some odd reason
+      # PHP_FPM_VERSION=$(php -v | head -n 1 | cut -d ' ' -f 2 | cut -d '.' -f 1-2)
       PHP_FPM_VERSION: "8.2"
     steps:
       - add_ssh_keys:
@@ -418,14 +431,14 @@ workflows:
       - lint-phpmd:
           requires:
             - lint-setup
-      - waiter-lint_reports:
-          requires:
-            - build-setup
-      - lint-reports:
-          requires:
-            - waiter-lint_reports
-            # - lint-phpcs
-            # - lint-phpmd
+      # - waiter-lint_reports:
+      #     requires:
+      #       - build-setup
+      # - lint-reports:
+      #     requires:
+      #       # - waiter-lint_reports
+      #       - lint-phpcs
+      #       - lint-phpmd
       - metrics-setup:
           requires:
             - build-setup
@@ -435,21 +448,22 @@ workflows:
       - metrics-phploc:
           requires:
             - metrics-setup
-      - waiter-metrics_reports:
-          requires:
-            - build-setup
-      - metrics-reports:
-          requires:
-            - waiter-metrics_reports
-            # - metrics-phpmetrics
-            # - metrics-phploc
+      # - waiter-metrics_reports:
+      #     requires:
+      #       - build-setup
+      # - metrics-reports:
+      #     requires:
+      #       # - waiter-metrics_reports
+      #       - metrics-phpmetrics
+      #       - metrics-phploc
       - security-check-dependencies:
           requires:
             - build-setup
       - test-phpunit:
           requires:
             - build-setup
-      # - hold: # Not needed
+      # # Not needed
+      # - hold:
       #     type: approval
       #     filters:
       #       branches:
@@ -478,11 +492,11 @@ workflows:
               only:
                 # - master
                 - main
-                - develop
-                - /^feature\/.*/
-                # - /^release\/.*/ #TODO: re-enable later
-                - /^hotfix\/.*/
-                - /^bugfix\/.*/
+                # - develop
+                # - /^feature\/.*/
+                - /^release\/.*/
+                # - /^hotfix\/.*/
+                # - /^bugfix\/.*/
             # tags:
             #   only:
             #     - /^release-.*/
@@ -496,4 +510,5 @@ workflows:
             branches:
               only:
                 - main
+                # - /^release\/.*/
                 # - master
