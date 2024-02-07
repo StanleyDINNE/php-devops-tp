@@ -24,7 +24,7 @@ docker build --tag php-devops-tp --file docker/Dockerfile .
 
 # Summon container running in the background
 docker run --detach --interactive --tty \
-	--publish target=80,published=127.0.0.1:9852,protocol=tcp \
+	--publish published=127.0.0.1:9852,target=80,protocol=tcp \
 	--add-host host.docker.internal:host-gateway \
 	--name php-devops-tp_container php-devops-tp
 # Then we can access the page via the webbrowser at "http://localhost:9852"

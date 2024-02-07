@@ -7,6 +7,7 @@ docker-compose.override.yml
 /.idea
 /.vscode
 composer.phar
+out/
 
 # Generated files from Typst template files (with VSCode extension "generate pdf on save")
 Constants.pdf
