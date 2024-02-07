@@ -413,7 +413,7 @@ jobs:
             sudo docker stop "$CONTAINER_NAME"
             sudo docker rm "$CONTAINER_NAME"
             sudo docker pull "$REPOSITORY:latest"
-            sudo docker run --detach --publish 80:80 --name "$CONTAINER_NAME" "$REPOSITORY:latest"
+            sudo docker run -e INFISICAL_API_TOKEN="$INFISICAL_API_TOKEN" --detach --publish 80:80 --name "$CONTAINER_NAME" "$REPOSITORY:latest"
             sudo docker ps
             EOF
 

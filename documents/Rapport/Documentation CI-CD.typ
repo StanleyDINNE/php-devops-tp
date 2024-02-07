@@ -1,5 +1,7 @@
 
 
+= Documentation CI-CD
+
 - Si AWS tombe
 	+ On a restart et reconfiguré les machines
 	+ Récupération des addresses IPv4 publiques

@@ -56,7 +56,7 @@
 #let set_config_document_style(document_) = {
 	// set heading(numbering: "1.1 " + str.from-unicode(__constants_toml.char.em-dash))
 	set heading(numbering: (..nums) => {
-		nums.pos().map(str).join(".") + " " + str.from-unicode(__constants_toml.char.em-dash)
+		nums.pos().map(str).join(".")
 	})
 
 	set par(
@@ -69,10 +69,18 @@
 	show link: underline
 
 	// Thx to https://github.com/typst/typst/discussions/2812#discussioncomment-7721649
-	show heading: h => pad(left: 1em * (h.level - 1), h) + text(0pt, white)[.]
+	show heading: h => {
+		let number_dash = if h.numbering != none {
+			[#counter(heading).display() #str.from-unicode(__constants_toml.char.em-dash) ]
+		} else {
+			[]
+		}
+		pad(left: 1em * (h.level - 1), [#number_dash#h.body]) + text(0pt, white)[.]
+	}
 
 	document_
 }
+
 
 
 
