@@ -3,12 +3,12 @@
 
 
 #import "Typst/Template_default.typ": set_config
-#import "Typst/Constants.typ": document_data, line_separator
-#import "Typst/Util.typ": file_folder, import_csv_filter_categories, insert_code-snippet, insert_figure, to_string, todo, transpose
+#import "Typst/Constants.typ": document_data, line_separator, figures_folder
+#import "Typst/Util.typ": file_folder, import_csv_filter_categories, insert_code-snippet, insert_figure as i_f, to_string, todo, transpose
 
 
 #show: document => set_config(
-	title: [Configuration d'un Pipeline CI/CD\ pour une Application Web PHP],
+	title: [Configuration d'un Pipeline CI/CD\ pour une #link("https://github.com/StanleyDINNE/php-devops-tp")[Application Web PHP]],
 	title_prefix: "TP: ",
 	authors: (document_data.author.reb, document_data.author.stan, document_data.author.raf).join("\n"),
 	context: "Security & Privacy 3.0",
@@ -17,9 +17,16 @@
 	header_logo: align(center, image("Typst/logo_Polytech_Nice_X_UCA.png", width: 40%)),
 )[#document]
 
+#let insert_figure(title, width: 100%, border: true) = {
+	i_f(title, folder: "../" + figures_folder + "/Rapport", width: width, border: border)
+}
 
 
-#outline(title: "Table of contents", indent: 1em, depth: 3) <table_of_contents>
+Le dépôt se trouve à l'adresse : https://github.com/StanleyDINNE/php-devops-tp
+
+#linebreak()
+
+#outline(title: "Sommaire", indent: 1em, depth: 3) <table_of_contents>
 #pagebreak()
 
 
@@ -110,6 +117,8 @@ Les variables d'environnement ```bash $CIRCLE_PROJECT_USERNAME```, ```bash $CIRC
 Nous pensions au début qu'Infisical nous servirait à stocker les secrets utilisés lors des build dans le pipeline dans CircleCI.
 La suite de cette sous-partie illustre nos réflexions pour parvenir à configurer et stocker dans Infisical les secrets déclarés dans #file_folder(".circleci/conig.yml") et donc utilisés dans CircleCI, comme ```bash $GHCR_USERNAME``` et ```bash $GHCR_PAT``` servant aux jobs depuis lesquels sont construits et publiés les images Docker du projet.
 
+À la fin de toutes les configurations de ce rapport, voici un accès au token, qui peut être utilisé pour l'injection de commandes dans l'application
+#insert_figure("Récupération réussie du token Infisical depuis le container")
 
 === Secrets liés au build dans le pipeline <infisical_in_circleci>
 
@@ -177,8 +186,6 @@ Ayant déjà compris l'usage des contexes dans CircleCI, nous avons simplement c
 
 En lançant un build de debug (avant toutes ces réflexions dans @infisical_in_circleci), nous avons pu vérifier que les accès aux secrets étaient effectifs.
 #insert_figure("Vérification des accès aux secrets d'Infisical depuis un job dans CircleCI", width: 40%)
-
-#pagebreak()
 
 (_Avec le recul lors des dernières modification de ce rapport, il a paru beaucoup plus évident qu'il aurait été possible de gérer les secrets du build avec Infisical. Le choix de ne pas le faire expliqué par les raisons ci-dessus dans le @remarque_infisical_build et @correction_utilisation_contextes, sont des choix faits relativements tôt (début janvier 2024) et par soucis de ne pas rajouter de complexité inutile à peu de temps du rendu, celui-ci persistera._)
 
@@ -526,7 +533,7 @@ Aussi, l'image est tag avec son numéro de version issue d'un tag git, ou issu d
 
 #pagebreak()
 
-= Sécurité à tous les étages : quelques idées pour plus de sécurité tout au long du processus de déploiement
+= Sécurité à tous les étages : idées pour plus de sécurité tout au long du processus de déploiement
 
 + Désactivation de la branche `master` dans les condition de création d'images docker
 	- ```yaml
